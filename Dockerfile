@@ -1,28 +1,24 @@
-# השתמש בתמונה בסיסית של .NET SDK
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-
-# הגדר את תיקיית העבודה
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-nanoserver-ltsc2022 AS base
 WORKDIR /app
+EXPOSE 80
+EXPOSE 443
 
-# העתק את קובץ הפרויקט והתקן את התלויות
-COPY *.csproj ./
-RUN dotnet restore
+ENV ASPNETCORE_URLS=http://+:80
 
-# העתק את שאר הקבצים ו-build את האפליקציה
-COPY . ./
-RUN dotnet publish -c Release -o out
+FROM mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2022 AS build
+ARG configuration=Release
+WORKDIR /src
+COPY ["TodoApi.csproj", "./"]
+RUN dotnet restore "TodoApi.csproj"
+COPY . .
+WORKDIR "/src/."
+RUN dotnet build "TodoApi.csproj" -c $configuration -o /app/build
 
-# השתמש בתמונה בסיסית של .NET Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+FROM build AS publish
+ARG configuration=Release
+RUN dotnet publish "TodoApi.csproj" -c $configuration -o /app/publish /p:UseAppHost=false
 
-# הגדר את תיקיית העבודה
+FROM base AS final
 WORKDIR /app
-
-# העתק את האפליקציה מהשלב הקודם
-COPY --from=build /app/out .
-
-# הגדר את הפורט שיישומך יאזין עליו
-EXPOSE 5185
-
-# הפעל את האפליקציה
-ENTRYPOINT ["dotnet", "Program.dll"]
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "TodoApi.dll"]
